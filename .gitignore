@@ -36,7 +36,6 @@ mlartifacts/
 # Data (tracked with DVC instead)
 data/raw/*
 data/processed/*
-!data/raw/.gitkeep
 !data/processed/.gitkeep
 
 # IDE / OS
