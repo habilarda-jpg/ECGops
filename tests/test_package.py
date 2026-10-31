@@ -69,3 +69,22 @@ def test_unreachable_mlflow_server_is_reported_not_raised():
 
     assert mlflow_server_reachable("http://127.0.0.1:9", timeout=1) is False
     assert mlflow_server_reachable("file:./mlruns", timeout=1) is True
+
+
+def test_failing_mlflow_call_disables_mlflow_instead_of_raising():
+    from omegaconf import OmegaConf
+
+    from ecgops.tracking import ExperimentTracker
+
+    cfg = OmegaConf.create(
+        {"tracking": {"mlflow": {"enabled": False}, "wandb": {"enabled": False}}}
+    )
+    tracker = ExperimentTracker(cfg, run_name="test", run_type="test")
+    tracker.use_mlflow = True  # pretend the server was reachable at start
+
+    def broken(*_args, **_kwargs):
+        raise ConnectionResetError("connection reset by peer")
+
+    assert tracker.mlflow_call("log_metrics", broken, {"loss": 1.0}) is None
+    assert tracker.use_mlflow is False
+    tracker.log_metrics({"loss": 1.0}, step=1)  # now a no-op, must not raise

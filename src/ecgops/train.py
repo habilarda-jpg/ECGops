@@ -240,21 +240,24 @@ def main(cfg: DictConfig) -> float:
             example = val_loader.dataset.features[:2].numpy()  # type: ignore[attr-defined]
             log_start = time.perf_counter()
             with skip_mlflow_requirement_check():
-                model_info = mlflow.pytorch.log_model(
+                model_info = tracker.mlflow_call(
+                    "log_model",
+                    mlflow.pytorch.log_model,
                     model,
                     name="model",
                     input_example=example,
                     pip_requirements=model_pip_requirements(),
                     registered_model_name=cfg.tracking.mlflow.registered_model_name,
                 )
-            log_seconds = time.perf_counter() - log_start
-            tracker.log_metrics({"log_model_seconds": log_seconds})
-            logger.info(
-                "Logged model to MLflow in {:.1f}s and registered '{}' version {}",
-                log_seconds,
-                cfg.tracking.mlflow.registered_model_name,
-                model_info.registered_model_version,
-            )
+            if model_info is not None:
+                log_seconds = time.perf_counter() - log_start
+                tracker.log_metrics({"log_model_seconds": log_seconds})
+                logger.info(
+                    "Logged model to MLflow in {:.1f}s and registered '{}' version {}",
+                    log_seconds,
+                    cfg.tracking.mlflow.registered_model_name,
+                    model_info.registered_model_version,
+                )
 
     return best_val_loss
 

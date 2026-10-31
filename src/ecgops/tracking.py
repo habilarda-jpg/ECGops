@@ -9,14 +9,17 @@ from __future__ import annotations
 
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import mlflow
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from ecgops.utils import flatten_dict, git_info
+
+T = TypeVar("T")
 
 
 def mlflow_server_reachable(tracking_uri: str, timeout: float) -> bool:
@@ -71,19 +74,7 @@ class ExperimentTracker:
         }
 
         if self.use_mlflow:
-            mlflow_cfg = self.cfg.tracking.mlflow
-            mlflow.set_tracking_uri(mlflow_cfg.tracking_uri)
-            mlflow.set_experiment(mlflow_cfg.experiment_name)
-            run = mlflow.start_run(run_name=self.run_name, tags=tags)
-            self.run_id = run.info.run_id
-            mlflow.log_params(params)
-            mlflow.log_text(OmegaConf.to_yaml(self.cfg, resolve=True), "config.yaml")
-            logger.info(
-                "MLflow run {} in experiment '{}' ({})",
-                self.run_id,
-                mlflow_cfg.experiment_name,
-                mlflow_cfg.tracking_uri,
-            )
+            self.mlflow_call("start run", self._start_mlflow_run, params, tags)
 
         if self.use_wandb:
             import wandb  # lazy: only needed (and installed) when W&B is enabled
@@ -97,27 +88,54 @@ class ExperimentTracker:
             logger.info("W&B run {}", self._wandb_run.url)
         return self
 
+    def _start_mlflow_run(self, params: dict[str, Any], tags: dict[str, str]) -> None:
+        mlflow_cfg = self.cfg.tracking.mlflow
+        mlflow.set_tracking_uri(mlflow_cfg.tracking_uri)
+        mlflow.set_experiment(mlflow_cfg.experiment_name)
+        run = mlflow.start_run(run_name=self.run_name, tags=tags)
+        self.run_id = run.info.run_id
+        mlflow.log_params(params)
+        mlflow.log_text(OmegaConf.to_yaml(self.cfg, resolve=True), "config.yaml")
+        logger.info(
+            "MLflow run {} in experiment '{}' ({})",
+            self.run_id,
+            mlflow_cfg.experiment_name,
+            mlflow_cfg.tracking_uri,
+        )
+
+    def mlflow_call(self, action: str, fn: Callable[..., T], *args: Any, **kwargs: Any) -> T | None:
+        """Run an MLflow call; if it fails, warn once and stop using MLflow for this run.
+
+        Tracking must never cost us a training run: if the server goes away mid-run (e.g.
+        "connection reset" after urllib3's retries), training carries on and the checkpoint
+        is still saved. Returns None when MLflow is off or the call failed.
+        """
+        if not self.use_mlflow:
+            return None
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:  # network failures surface as several exception types
+            logger.warning("MLflow {} failed ({}); continuing without MLflow.", action, exc)
+            self.use_mlflow = False
+            return None
+
     def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
-        if self.use_mlflow:
-            mlflow.log_metrics(metrics, step=step)
+        self.mlflow_call("log_metrics", mlflow.log_metrics, metrics, step=step)
         if self._wandb_run is not None:
             self._wandb_run.log(metrics, step=step)
 
     def set_tags(self, tags: dict[str, str]) -> None:
-        if self.use_mlflow:
-            mlflow.set_tags(tags)
+        self.mlflow_call("set_tags", mlflow.set_tags, tags)
         if self._wandb_run is not None:
             self._wandb_run.config.update(tags)
 
     def log_artifact(self, path: str | Path) -> None:
-        if self.use_mlflow:
-            mlflow.log_artifact(str(path))
+        self.mlflow_call("log_artifact", mlflow.log_artifact, str(path))
         if self._wandb_run is not None:
             self._wandb_run.save(str(path), policy="now")
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
         failed = exc_type is not None
-        if self.use_mlflow:
-            mlflow.end_run(status="FAILED" if failed else "FINISHED")
+        self.mlflow_call("end_run", mlflow.end_run, status="FAILED" if failed else "FINISHED")
         if self._wandb_run is not None:
             self._wandb_run.finish(exit_code=1 if failed else 0)
