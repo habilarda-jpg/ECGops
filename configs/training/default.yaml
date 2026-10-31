@@ -1,0 +1,6 @@
+batch_size: 64
+lr: 1.0e-3
+weight_decay: 1.0e-4             # AdamW decoupled weight decay
+epochs: 20
+early_stopping_patience: 5       # stop after this many epochs without a val_loss improvement
+num_workers: 0                   # DataLoader workers (0 is safest on Windows)

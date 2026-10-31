@@ -1,0 +1,7 @@
+# VGG-style 1D CNN (src/ecgops/model.py).
+in_channels: 1                   # one ECG lead
+channels: [32, 64, 128, 256]     # output channels of each conv block
+convs_per_block: 2               # int for all blocks, or a list with one entry per block
+kernel_size: 3                   # odd, so "same" padding keeps the length
+hidden_dim: 128                  # width of the hidden fully connected layer
+dropout: 0.5

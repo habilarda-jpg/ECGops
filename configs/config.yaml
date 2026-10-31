@@ -1,0 +1,31 @@
+# Main Hydra config. Override anything from the CLI, e.g.
+#   uv run train training.epochs=3 training.lr=5e-4 model.dropout=0.3
+defaults:
+  - model: vgg1d
+  - training: default
+  - _self_
+
+seed: 42
+
+data:
+  raw_dir: data/raw              # ptbdb_normal.csv + ptbdb_abnormal.csv (pulled with DVC)
+  processed_dir: data/processed  # train/val/test .npz files written by prepare-data
+  val_size: 0.15                 # fractions of the full dataset
+  test_size: 0.15
+
+model_out: models/ecg_vgg1d.pt   # best checkpoint (state_dict + model config)
+
+evaluation:
+  threshold: 0.5                 # sigmoid probability above which a beat is "abnormal"
+  reports_dir: reports           # metrics.json and figures/ go here
+
+tracking:
+  mlflow:
+    enabled: true
+    tracking_uri: http://localhost:5000
+    experiment_name: ecgops
+    registered_model_name: ecg-vgg1d
+    connect_timeout: 3           # seconds to wait for the server before skipping MLflow
+  wandb:
+    enabled: false
+    project: ecgops
