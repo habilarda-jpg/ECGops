@@ -76,7 +76,10 @@ test beat. That check exposed a separate bug, which is now fixed. MLflow 3 saves
 models with `torch.export`, which froze the batch size of the 1-beat input example: every
 registered version so far accepts only batches of exactly one beat ("Guard failed:
 x.size()[0] == 1"). The input example is now two real validation beats, which keeps the batch
-dimension dynamic. Versions logged before commit `5a8c4ef` have the batch-1 limitation.
+dimension dynamic. Versions 1–7 have the batch-1 limitation and are tagged `superseded` in
+the registry. **Version 8** (full 20-epoch run with the fix, `log_model` 46 s) loads back with
+signature `(-1, 1, 187)`, predicts 5 beats in one call, and matches the local checkpoint
+exactly.
 
 ## Before / after
 

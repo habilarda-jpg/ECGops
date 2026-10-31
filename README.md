@@ -95,6 +95,19 @@ docker run --rm -v "${PWD}\data:/app/data" -v "${PWD}\models:/app/models" `
   -v "${PWD}\reports:/app/reports" ecgops-evaluate:latest tracking.mlflow.enabled=false
 ```
 
+## Loading a registered model
+
+```bash
+# PowerShell: $env:MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD = "false"
+export MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD=false
+uv run python -c "import mlflow, mlflow.pytorch, torch; mlflow.set_tracking_uri('http://localhost:5000'); m = mlflow.pytorch.load_model('models:/ecg-vgg1d/8'); print(torch.sigmoid(m(torch.rand(5, 1, 187))))"
+```
+
+`MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD=false` is needed on the host. Otherwise MLflow downloads
+artifacts through presigned MinIO URLs that use the compose-internal hostname `minio:9000`,
+which only resolves inside the Docker network. Version 8 is the current model; versions 1–7
+only accept a batch of one beat and are tagged `superseded`.
+
 ## Profiling
 
 See [reports/profiling.md](reports/profiling.md).
