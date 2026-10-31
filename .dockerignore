@@ -1,0 +1,39 @@
+# Keep the build context small: only pyproject.toml, uv.lock, README.md and src/ are needed.
+.git
+.github
+.venv
+venv
+.env
+.env.*
+!.env.example
+
+# Data, models and run outputs
+data/raw
+data/processed
+models
+outputs
+multirun
+mlruns
+mlartifacts
+reports
+notebooks
+
+# DVC internals (cache, credentials)
+.dvc/cache
+.dvc/tmp
+.dvc/config.local
+
+# Caches
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
