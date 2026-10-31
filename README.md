@@ -7,33 +7,58 @@ MLOps course project: detecting abnormal heartbeats from ECG signals.
 ## Layout
 
 ```
-data/raw, data/processed   # datasets (tracked with DVC, not git)
-src/data                   # data validation (Great Expectations)
-src/models                 # training (PyTorch, Optuna, MLflow)
-src/api                    # FastAPI inference service
-src/monitoring             # drift detection (Evidently) + Prometheus metrics
-tests                      # pytest
-docker                     # Dockerfile
-.github/workflows          # CI/CD
+├── .github/workflows/ci.yml   # CI: ruff + pytest
+├── configs/                   # Hydra configs
+├── data/
+│   ├── raw/                   # PTBDB CSVs (tracked with DVC, not git)
+│   └── processed/
+├── dockerfiles/
+│   ├── api.dockerfile         # FastAPI inference image
+│   └── mlflow.dockerfile      # MLflow tracking server image
+├── infra/
+│   ├── grafana/               # Grafana provisioning (Prometheus datasource)
+│   └── prometheus/            # Prometheus scrape config
+├── models/                    # trained weights (git-ignored)
+├── notebooks/                 # exploration
+├── reports/figures/           # generated plots
+├── src/ecgops/
+│   ├── data.py                # loading, preprocessing, validation
+│   ├── model.py               # PyTorch model
+│   ├── train.py               # training entrypoint (`uv run train`)
+│   ├── evaluate.py            # evaluation entrypoint (`uv run evaluate`)
+│   ├── api.py                 # FastAPI service (M7)
+│   └── monitoring.py          # drift detection + Prometheus metrics (M8)
+├── tests/                     # pytest
+├── docker-compose.yml         # local MLflow (PostgreSQL + MinIO), Prometheus, Grafana
+├── pyproject.toml
+└── uv.lock
 ```
 
 ## Setup
 
-Requires [uv](https://docs.astral.sh/uv/). Python 3.12 is pinned in `.python-version`.
+Requires [uv](https://docs.astral.sh/uv/). Python 3.12 is pinned in `.python-version`
+(the package supports 3.12 and 3.13).
 
 ```bash
-uv sync                      # create .venv and install dependencies
+uv sync                      # create .venv, install ecgops (editable) + dev tools
 uv run pre-commit install    # enable ruff hooks
 uv run pytest                # run tests
 uv run ruff check .          # lint
+uv run train                 # training entrypoint
 ```
 
-## CI/CD (`.github/workflows/ci.yml`)
+Optional dependency groups are not installed by default:
 
-1. **test** — ruff + pytest on Python 3.12 (every push / PR)
-2. **build-push** — build `docker/Dockerfile`, push `ghcr.io/<owner>/ecgops:<git-sha>` (main only)
-3. **deploy** — SSH to server, pull image, `docker compose up -d`, check `/health` (main only)
+```bash
+uv sync --group serving      # fastapi, uvicorn
+uv sync --group tuning       # optuna
+uv sync --group monitoring   # evidently, great-expectations, prometheus-client
+uv sync --all-groups         # everything
+```
 
-The deploy job is skipped unless these repository secrets are set:
-`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`. Optional repository variable `DEPLOY_PATH`
-(directory containing `docker-compose.yml` on the server, default `~/ecgops`).
+On Linux (CI, Docker) torch comes from the CPU-only PyTorch index.
+
+## CI (`.github/workflows/ci.yml`)
+
+**test**: ruff (lint + format check) and pytest with coverage on Python 3.12, for every
+push to `main` and every pull request. Image build and deploy jobs return with the API in M7.
