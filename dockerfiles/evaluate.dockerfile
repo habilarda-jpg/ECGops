@@ -50,7 +50,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     ECGOPS_ROOT=/app \
     ECGOPS_CONFIG_DIR=/app/configs \
     MPLCONFIGDIR=/tmp/matplotlib \
-    MLFLOW_DISABLE_AGENT_HINT=1
+    MLFLOW_DISABLE_AGENT_HINT=1 \
+    GIT_PYTHON_REFRESH=quiet
 
 ARG GIT_COMMIT=unknown
 ARG GIT_BRANCH=unknown

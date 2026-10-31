@@ -40,7 +40,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     ECGOPS_ROOT=/app \
     ECGOPS_CONFIG_DIR=/app/configs \
-    MLFLOW_DISABLE_AGENT_HINT=1
+    MLFLOW_DISABLE_AGENT_HINT=1 \
+    GIT_PYTHON_REFRESH=quiet
 
 # Git metadata for the MLflow tags (the image has no .git folder). Declared last so a new
 # commit only rebuilds this tiny layer.
