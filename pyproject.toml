@@ -7,6 +7,7 @@ requires-python = ">=3.12,<3.14"
 dependencies = [
     "hydra-core>=1.3.2",
     "loguru>=0.7.3",
+    "matplotlib>=3.11.2",
     "mlflow>=3.17.0",
     "numpy>=2.5.4",
     "pandas>=3.0.6",
@@ -15,6 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
+prepare-data = "ecgops.data:main"
 train = "ecgops.train:main"
 evaluate = "ecgops.evaluate:main"
 
@@ -33,6 +35,9 @@ serving = [
 ]
 tuning = [
     "optuna>=5.0.0",
+]
+wandb = [
+    "wandb>=0.31.0",
 ]
 monitoring = [
     "evidently>=0.7.23",
