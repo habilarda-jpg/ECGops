@@ -20,7 +20,6 @@ from unittest.mock import patch
 import hydra
 import mlflow
 import mlflow.pytorch
-import numpy as np
 import torch
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
@@ -28,7 +27,6 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from ecgops.data import (
-    SIGNAL_LENGTH,
     ECGDataset,
     prepare_data,
     processed_data_exists,
@@ -236,7 +234,10 @@ def main(cfg: DictConfig) -> float:
 
         if tracker.use_mlflow:
             model.cpu().eval()
-            example = np.zeros((1, 1, SIGNAL_LENGTH), dtype=np.float32)  # documents the input shape
+            # Two real validation beats, shape (2, 1, 187). MLflow exports the model with
+            # torch.export, which freezes any dimension of size 1: a 1-beat example would give
+            # a registered model that only accepts batches of exactly one beat.
+            example = val_loader.dataset.features[:2].numpy()  # type: ignore[attr-defined]
             log_start = time.perf_counter()
             with skip_mlflow_requirement_check():
                 model_info = mlflow.pytorch.log_model(

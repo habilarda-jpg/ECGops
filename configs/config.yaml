@@ -25,7 +25,7 @@ tracking:
     tracking_uri: http://localhost:5000
     experiment_name: ecgops
     registered_model_name: ecg-vgg1d
-    connect_timeout: 3           # seconds to wait for the server before skipping MLflow
+    connect_timeout: 10          # seconds to wait for the server before skipping MLflow
   wandb:
     enabled: false
     project: ecgops
