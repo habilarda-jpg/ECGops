@@ -12,7 +12,7 @@ scrape_configs:
     static_configs:
       - targets: ["minio:9000"]
 
-  # FastAPI inference service (src/api) - enable once it exposes /metrics.
+  # FastAPI inference service (src/ecgops/api.py) - enable once it exposes /metrics.
   # - job_name: ecg-api
   #   static_configs:
   #     - targets: ["host.docker.internal:8000"]
