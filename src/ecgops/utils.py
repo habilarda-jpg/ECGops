@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import random
 import subprocess
 import sys
@@ -13,16 +14,23 @@ from typing import Any
 import numpy as np
 import torch
 from hydra.core.hydra_config import HydraConfig
-from hydra.utils import to_absolute_path
 from loguru import logger
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CONFIG_DIR = PROJECT_ROOT / "configs"
+# Where the project lives. With the editable install (uv sync) this file sits in
+# <repo>/src/ecgops/, so the repo root is two levels up. Inside Docker the package is
+# installed into site-packages instead, so the images set ECGOPS_ROOT=/app and
+# ECGOPS_CONFIG_DIR=/app/configs explicitly.
+PROJECT_ROOT = Path(os.environ.get("ECGOPS_ROOT", Path(__file__).resolve().parents[2]))
+CONFIG_DIR = Path(os.environ.get("ECGOPS_CONFIG_DIR", PROJECT_ROOT / "configs"))
 
 
 def abs_path(path: str | Path) -> Path:
-    """Resolve a config path against the directory the command was started from."""
-    return Path(to_absolute_path(str(path)))
+    """Resolve a (relative) config path such as data/raw against the project root.
+
+    Absolute paths are returned unchanged, so you can still point anywhere from the CLI.
+    """
+    path = Path(path)
+    return path if path.is_absolute() else PROJECT_ROOT / path
 
 
 def seed_everything(seed: int) -> None:
@@ -43,12 +51,19 @@ def get_device() -> torch.device:
 
 
 def git_info() -> dict[str, str]:
-    """Return the current git commit and branch ("unknown" outside a git checkout)."""
+    """Return the current git commit and branch.
+
+    ECGOPS_GIT_COMMIT / ECGOPS_GIT_BRANCH win when set (Docker images have no .git folder and
+    get them as build args); otherwise ask git, falling back to "unknown".
+    """
     info = {}
     for key, args in {
         "commit": ["rev-parse", "HEAD"],
         "branch": ["branch", "--show-current"],
     }.items():
+        if value := os.environ.get(f"ECGOPS_GIT_{key.upper()}"):
+            info[key] = value
+            continue
         try:
             result = subprocess.run(
                 ["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, check=True
