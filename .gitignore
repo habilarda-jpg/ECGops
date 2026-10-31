@@ -43,3 +43,11 @@ data/processed/*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Trained model weights (keep the folder)
+models/*
+!models/.gitkeep
+
+# Hydra run outputs
+outputs/
+multirun/
