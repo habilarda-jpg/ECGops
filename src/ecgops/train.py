@@ -12,6 +12,10 @@ from __future__ import annotations
 import copy
 import math
 import time
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager
+from importlib.metadata import version
+from unittest.mock import patch
 
 import hydra
 import mlflow
@@ -41,6 +45,43 @@ from ecgops.utils import (
     seed_everything,
     setup_logging,
 )
+
+# Packages the logged MLflow model needs at load time (mlflow itself is added automatically).
+MODEL_REQUIREMENTS = ("torch", "numpy", "cloudpickle")
+
+
+def model_pip_requirements() -> list[str]:
+    """Pin the model's runtime packages to the versions installed right now.
+
+    Passing these to ``log_model`` stops MLflow from inferring requirements itself, which
+    spawns ``uv export`` / pip subprocesses and took minutes per run (see
+    reports/profiling.md). Local version labels such as ``+cpu`` are dropped because they only
+    exist on the PyTorch index, not on PyPI.
+    """
+    return [f"{name}=={version(name).split('+')[0]}" for name in MODEL_REQUIREMENTS]
+
+
+@contextmanager
+def skip_mlflow_requirement_check() -> Iterator[None]:
+    """Skip MLflow's "do the model requirements match this environment?" warning.
+
+    MLflow builds that warning by scanning the metadata of every installed package
+    (``importlib_metadata.packages_distributions``), which took ~80 s per run on this Windows
+    machine and was the largest cost in the profile. It can never fire for us, because
+    ``model_pip_requirements`` pins exactly the versions that are installed. The patch is
+    limited to the ``log_model`` call and is skipped if a future MLflow renames the function.
+    """
+    import mlflow.pyfunc
+    import mlflow.utils.environment
+
+    name = "warn_dependency_requirement_mismatches"
+    with ExitStack() as stack:
+        for module in (mlflow.utils.environment, mlflow.pyfunc):
+            if hasattr(module, name):
+                stack.enter_context(patch.object(module, name, lambda *_args, **_kwargs: None))
+            else:
+                logger.debug("{}.{} not found; check not skipped", module.__name__, name)
+        yield
 
 
 def make_loaders(cfg: DictConfig) -> tuple[DataLoader, DataLoader]:
@@ -196,14 +237,20 @@ def main(cfg: DictConfig) -> float:
         if tracker.use_mlflow:
             model.cpu().eval()
             example = np.zeros((1, 1, SIGNAL_LENGTH), dtype=np.float32)  # documents the input shape
-            model_info = mlflow.pytorch.log_model(
-                model,
-                name="model",
-                input_example=example,
-                registered_model_name=cfg.tracking.mlflow.registered_model_name,
-            )
+            log_start = time.perf_counter()
+            with skip_mlflow_requirement_check():
+                model_info = mlflow.pytorch.log_model(
+                    model,
+                    name="model",
+                    input_example=example,
+                    pip_requirements=model_pip_requirements(),
+                    registered_model_name=cfg.tracking.mlflow.registered_model_name,
+                )
+            log_seconds = time.perf_counter() - log_start
+            tracker.log_metrics({"log_model_seconds": log_seconds})
             logger.info(
-                "Logged model to MLflow and registered '{}' version {}",
+                "Logged model to MLflow in {:.1f}s and registered '{}' version {}",
+                log_seconds,
                 cfg.tracking.mlflow.registered_model_name,
                 model_info.registered_model_version,
             )
