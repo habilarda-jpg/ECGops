@@ -62,3 +62,10 @@ def test_paths_and_git_info_follow_env_vars(tmp_path, monkeypatch):
     finally:
         monkeypatch.undo()
         importlib.reload(ecgops.utils)
+
+
+def test_unreachable_mlflow_server_is_reported_not_raised():
+    from ecgops.tracking import mlflow_server_reachable
+
+    assert mlflow_server_reachable("http://127.0.0.1:9", timeout=1) is False
+    assert mlflow_server_reachable("file:./mlruns", timeout=1) is True

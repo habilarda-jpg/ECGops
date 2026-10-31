@@ -20,15 +20,21 @@ from ecgops.utils import flatten_dict, git_info
 
 
 def mlflow_server_reachable(tracking_uri: str, timeout: float) -> bool:
-    """Ping the MLflow server's /health endpoint; local file/sqlite URIs need no server."""
+    """Check that the MLflow server answers API calls; local file/sqlite URIs need no server.
+
+    A real API endpoint is used instead of /health: /health is exempt from MLflow's Host-header
+    check, so it can succeed while every API call is rejected with 403 (e.g. when the server
+    was not started with ``--allowed-hosts`` for the hostname we use).
+    """
     if not tracking_uri.startswith(("http://", "https://")):
         return True
+    url = f"{tracking_uri.rstrip('/')}/api/2.0/mlflow/experiments/search?max_results=1"
     try:
-        with urllib.request.urlopen(f"{tracking_uri.rstrip('/')}/health", timeout=timeout) as resp:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
             return resp.status == 200
-    except (urllib.error.URLError, OSError) as exc:
+    except (urllib.error.URLError, OSError) as exc:  # HTTPError (e.g. 403) is a URLError
         logger.warning(
-            "MLflow server {} unreachable ({}); continuing without MLflow.", tracking_uri, exc
+            "MLflow server {} unusable ({}); continuing without MLflow.", tracking_uri, exc
         )
         return False
 

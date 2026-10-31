@@ -81,6 +81,9 @@ services:
       - --serve-artifacts
       # One worker: the default (4) starves a small Docker Desktop VM and workers get killed.
       - --workers=1
+      # Host headers the server accepts (MLflow 3 rejects others with 403 to block DNS
+      # rebinding): the host machine, plus "mlflow" for containers on the compose network.
+      - --allowed-hosts=localhost,localhost:*,127.0.0.1,127.0.0.1:*,mlflow,mlflow:*
     ports:
       - "5000:5000"
     healthcheck:
