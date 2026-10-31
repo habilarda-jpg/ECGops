@@ -16,10 +16,11 @@ ENV UV_COMPILE_BYTECODE=0 \
 WORKDIR /app
 
 # Packages that are installed as dependencies of torch/mlflow but are never imported when
-# evaluating: torch.compile's symbolic maths (sympy, mpmath, networkx), mlflow's Arrow and
-# Databricks integrations (pyarrow, databricks-sdk). Leaving them out saves ~270 MB.
+# evaluating: torch.compile's symbolic maths (sympy, mpmath, networkx) and mlflow's Arrow
+# integration (pyarrow). Leaving them out saves ~250 MB. (databricks-sdk must stay: `import
+# mlflow` probes the "databricks" namespace package and fails without it.)
 ARG SKIP_PACKAGES="--no-install-package sympy --no-install-package mpmath \
-    --no-install-package networkx --no-install-package pyarrow --no-install-package databricks-sdk"
+    --no-install-package networkx --no-install-package pyarrow"
 
 # Dependency layer first (cached until uv.lock / pyproject.toml change), then our package.
 COPY uv.lock pyproject.toml README.md ./
