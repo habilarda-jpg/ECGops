@@ -58,3 +58,6 @@ reports/figures/*.png
 
 # Weights & Biases local run files
 wandb/
+
+# Profiler output (summarised in reports/profiling.md)
+reports/profiling/

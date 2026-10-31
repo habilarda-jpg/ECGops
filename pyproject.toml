@@ -28,6 +28,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-cov",
     "ruff>=0.17.0",
+    "snakeviz>=2.2.2",
 ]
 serving = [
     "fastapi>=0.143.0",
