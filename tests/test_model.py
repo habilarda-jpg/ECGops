@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from ecgops.model import VGG1D, count_parameters
+from ecgops.model import VGG1D, build_model, count_parameters
 
 
 def test_forward_returns_one_logit_per_beat():
@@ -29,3 +29,9 @@ def test_wider_model_has_more_parameters():
 def test_invalid_configs_raise(kwargs):
     with pytest.raises(ValueError):
         VGG1D(**kwargs)
+
+
+def test_build_model_from_config_mapping():
+    model = build_model({"channels": [8, 16], "convs_per_block": 1, "hidden_dim": 16})
+    assert isinstance(model, VGG1D)
+    assert model.eval()(torch.rand(3, 1, 187)).shape == (3,)
