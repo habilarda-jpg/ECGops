@@ -58,7 +58,7 @@ give identical answers.
 ## Run the local website
 
 ```bash
-uv sync --group serving      # FastAPI, uvicorn, python-multipart
+uv sync                      # serving (FastAPI, uvicorn) is a default group
 uv run serve                 # http://127.0.0.1:8000 (uv run serve --port 8080 to change)
 ```
 
@@ -67,15 +67,22 @@ Open <http://127.0.0.1:8000>:
 - **Try a sample**: pick one of the 10 example beats; the page draws it and shows the
   probability, the predicted label and the true label.
 - **Upload a CSV**: drag `samples/demo_beats_500.csv` (500 labeled test beats) onto the
-  drop zone. The bar shows the upload (`Uploading… 45%`), then the analysis
-  (`Analysing… 120/300 beats (40%)`). Then you get a summary, accuracy, a table (click a row
-  to draw that beat) and a **Download results CSV** button.
-- **Threshold slider**: re-labels everything in the browser and shows how many beats change.
+  drop zone. The bar shows the upload (`Step 1 of 2 · Uploading …`), then the analysis
+  (`Step 2 of 2 · Analysing 120 / 500 beats`) with a percentage. Then you get stat tiles
+  (beats, abnormal, normal, accuracy, changed vs default), a confusion matrix (labeled files),
+  a scrollable table (click a row or use ↑/↓ to draw that beat) and **Download CSV**.
+- **Decision threshold**: the slider re-labels everything in the browser (table, tiles,
+  confusion matrix, chart, sample); **Reset to default** goes back to the model's threshold.
+  The CSV download uses the current threshold.
+- **Clear results**: resets the results without reloading (also stops a running upload) and
+  tells the server to forget the job (`DELETE /jobs/{id}`). A new upload clears automatically.
+- **Light / Dark / System**: the toggle in the top bar; System follows the OS setting. The
+  choice is remembered in the browser.
 
 The API docs (Swagger) are at <http://127.0.0.1:8000/docs>. Endpoints: `GET /health`,
 `GET /samples`, `POST /predict` (JSON beats), `POST /jobs` (CSV upload, max 5 MB and
 10,000 beats), `GET /jobs/{id}` (progress and results), `GET /jobs/{id}/beats/{n}`,
-`GET /jobs/{id}/results.csv`.
+`GET /jobs/{id}/results.csv`, `DELETE /jobs/{id}`.
 
 The model is loaded once at startup from `models/ecg_vgg1d.pt`. Set
 `ECGOPS_MODEL_SOURCE=mlflow` (and optionally `ECGOPS_MODEL_VERSION=8`) to use the MLflow
@@ -130,17 +137,17 @@ Requires [uv](https://docs.astral.sh/uv/). Python 3.12 is pinned in `.python-ver
 (the package supports 3.12 and 3.13).
 
 ```bash
-uv sync                      # create .venv, install ecgops (editable) + dev tools
+uv sync                      # create .venv, install ecgops (editable) + dev tools + serving
 uv run pre-commit install    # run the pre-commit hooks on every commit
 uv run pytest                # run tests
 uv run ruff check .          # lint
 uv run train                 # training entrypoint
 ```
 
-Optional dependency groups are not installed by default:
+`dev` and `serving` (fastapi, uvicorn) are default groups (`[tool.uv] default-groups`);
+the other groups are optional:
 
 ```bash
-uv sync --group serving      # fastapi, uvicorn
 uv sync --group tuning       # optuna
 uv sync --group monitoring   # evidently, great-expectations, prometheus-client
 uv sync --all-groups         # everything
