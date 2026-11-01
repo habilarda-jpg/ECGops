@@ -22,6 +22,7 @@ evaluation:
 samples:                         # `uv run make-samples`: example beats for `uv run predict`
   out_dir: samples               # example_beats.csv (+ label) and example_beats_unlabeled.csv
   n_per_class: 5                 # normal and abnormal beats each, drawn from the TEST split
+  demo_size: 500                 # demo_beats_500.csv: random test beats for the web page
   seed: 42
 
 predict:                         # `uv run predict input=... plot=true` (short keys work too)

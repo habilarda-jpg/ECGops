@@ -179,14 +179,31 @@ class ECGDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         return self.features[index], self.labels[index]
 
 
-def make_samples(cfg: DictConfig) -> dict[str, Path]:
-    """Copy a few beats from the TEST split to samples/ as small example CSV files.
+def write_beats_csv(path: Path, beats: np.ndarray, labels: np.ndarray | None = None) -> None:
+    """Write beats in the raw PTBDB format: 187 values (+ integer label), no header.
 
-    ``cfg.samples.n_per_class`` normal and abnormal beats are drawn with ``cfg.samples.seed``
-    (so the files are reproducible) and shuffled. Only the test split is used, never train
-    or val, so the trained model has not seen these beats. Two files are written:
-    example_beats.csv in the raw PTBDB format (187 values + label, no header) and
-    example_beats_unlabeled.csv with the same beats but without the label column.
+    newline="\n" keeps the files byte-identical on Windows and Linux.
+    """
+    with path.open("w", newline="\n") as f:
+        for i, beat in enumerate(beats):
+            values = [f"{v:.7g}" for v in beat]
+            if labels is not None:
+                values.append(str(int(labels[i])))
+            f.write(",".join(values) + "\n")
+
+
+def make_samples(cfg: DictConfig) -> dict[str, Path]:
+    """Copy beats from the TEST split to samples/ as example CSV files.
+
+    Only the test split is used, never train or val, so the trained model has not seen
+    these beats. Everything is drawn with ``cfg.samples.seed``, so the files are
+    reproducible. Three files are written:
+
+    * example_beats.csv: ``cfg.samples.n_per_class`` normal + abnormal beats, shuffled, in
+      the raw PTBDB format (187 values + label, no header);
+    * example_beats_unlabeled.csv: the same beats without the label column;
+    * demo_beats_<N>.csv: ``cfg.samples.demo_size`` labeled beats drawn at random (natural
+      class ratio), big enough to watch the upload progress bar in the web page.
     """
     test_path = processed_paths(cfg)["test"]
     if not test_path.exists():
@@ -207,24 +224,32 @@ def make_samples(cfg: DictConfig) -> dict[str, Path]:
 
     out_dir = abs_path(cfg.samples.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    # Drawn after the example beats, so adding it left example_beats*.csv unchanged.
+    demo_size = min(int(cfg.samples.demo_size), len(labels))
+    demo = np.sort(rng.choice(len(labels), size=demo_size, replace=False))
+
     paths = {
         "labeled": out_dir / "example_beats.csv",
         "unlabeled": out_dir / "example_beats_unlabeled.csv",
+        "demo": out_dir / f"demo_beats_{demo_size}.csv",
     }
-    # newline="\n" so the files are byte-identical on Windows and Linux.
-    with paths["labeled"].open("w", newline="\n") as f:
-        for beat, label in zip(beats, beat_labels, strict=True):
-            f.write(",".join([*(f"{v:.7g}" for v in beat), str(int(label))]) + "\n")
-    with paths["unlabeled"].open("w", newline="\n") as f:
-        for beat in beats:
-            f.write(",".join(f"{v:.7g}" for v in beat) + "\n")
+    write_beats_csv(paths["labeled"], beats, beat_labels)
+    write_beats_csv(paths["unlabeled"], beats)
+    write_beats_csv(paths["demo"], features[demo], labels[demo])
+    logger.info(
+        "Wrote {} demo beats ({:.1%} abnormal) to {}",
+        demo_size,
+        float(labels[demo].mean()),
+        paths["demo"],
+    )
     logger.info(
         "Wrote {} test beats ({} normal, {} abnormal; test rows {}) to {} and {}",
         len(order),
         int((beat_labels == 0).sum()),
         int((beat_labels == 1).sum()),
         order.tolist(),
-        *paths.values(),
+        paths["labeled"],
+        paths["unlabeled"],
     )
     return paths
 
