@@ -1,13 +1,20 @@
 # ECGops
 
-MLOps course project: detecting abnormal heartbeats from ECG signals.
+[![tests](https://github.com/habilarda-jpg/ECGops/actions/workflows/tests.yml/badge.svg?branch=feature/sprint-a)](https://github.com/habilarda-jpg/ECGops/actions/workflows/tests.yml?query=branch%3Afeature%2Fsprint-a)
+[![lint](https://github.com/habilarda-jpg/ECGops/actions/workflows/lint.yml/badge.svg?branch=feature/sprint-a)](https://github.com/habilarda-jpg/ECGops/actions/workflows/lint.yml?query=branch%3Afeature%2Fsprint-a)
+[![docker](https://github.com/habilarda-jpg/ECGops/actions/workflows/docker.yml/badge.svg?branch=feature/sprint-a)](https://github.com/habilarda-jpg/ECGops/actions/workflows/docker.yml?query=branch%3Afeature%2Fsprint-a)
 
-> Status: scaffold only — no ML code yet.
+MLOps course project: detecting abnormal heartbeats from ECG signals (PTBDB) with a
+VGG-style 1D CNN, tracked in MLflow, configured with Hydra and packaged in Docker.
+
+> The badges show `feature/sprint-a` for now. After merging to `main`, replace
+> `branch=feature/sprint-a` with `branch=main` and `branch%3Afeature%2Fsprint-a` with
+> `branch%3Amain` in the three badge lines.
 
 ## Layout
 
 ```
-├── .github/workflows/ci.yml   # CI: ruff + pytest
+├── .github/workflows/         # CI: tests.yml, lint.yml, docker.yml
 ├── configs/                   # Hydra configs
 ├── data/
 │   ├── raw/                   # PTBDB CSVs (tracked with DVC, not git)
@@ -33,7 +40,7 @@ MLOps course project: detecting abnormal heartbeats from ECG signals.
 │   ├── profiling.py           # torch.profiler snapshot of one epoch
 │   ├── tracking.py            # MLflow / W&B experiment tracker
 │   └── utils.py               # paths, seeding, git info, logging
-├── tests/                     # pytest
+├── tests/                     # pytest, one file per area (+ conftest.py fixtures)
 ├── docker-compose.yml         # local MLflow (PostgreSQL + MinIO), Prometheus, Grafana
 ├── pyproject.toml
 └── uv.lock
@@ -46,7 +53,7 @@ Requires [uv](https://docs.astral.sh/uv/). Python 3.12 is pinned in `.python-ver
 
 ```bash
 uv sync                      # create .venv, install ecgops (editable) + dev tools
-uv run pre-commit install    # enable ruff hooks
+uv run pre-commit install    # run the pre-commit hooks on every commit
 uv run pytest                # run tests
 uv run ruff check .          # lint
 uv run train                 # training entrypoint
@@ -118,7 +125,62 @@ uv run snakeviz reports/profiling/train.prof      # interactive view in the brow
 uv run python -m ecgops.profiling                 # torch.profiler: one epoch by phase
 ```
 
-## CI (`.github/workflows/ci.yml`)
+## Tests and coverage
 
-**test**: ruff (lint + format check) and pytest with coverage on Python 3.12, for every
-push to `main` and every pull request. Image build and deploy jobs return with the API in M7.
+```bash
+uv run pytest --cov --cov-report=term-missing   # coverage of the ecgops package only
+```
+
+Tests use synthetic data and `tmp_path` only: no `data/raw`, DVC or MLflow server is needed.
+`tests/test_training.py` trains a tiny model for one epoch with MLflow disabled, then
+evaluates the checkpoint.
+
+## CI (GitHub Actions)
+
+All three workflows run on pushes to `main`, `development`, `feature/**`, `bugfix/**`,
+`release/**` and on pull requests to `main` and `development`.
+
+| Workflow | Job name(s) | What it does |
+|---|---|---|
+| [`tests.yml`](.github/workflows/tests.yml) | `tests (3.12)`, `tests (3.13)` | `uv sync --frozen`, pytest with coverage (matrix over Python 3.12/3.13); coverage report uploaded as an artifact |
+| [`lint.yml`](.github/workflows/lint.yml) | `lint` | `uv lock --check`, `ruff check .`, `ruff format --check .`, `mypy src` |
+| [`docker.yml`](.github/workflows/docker.yml) | `docker build` | builds `train.dockerfile` and `evaluate.dockerfile` with the GitHub Actions layer cache (not pushed) and runs `--help` + an import smoke test, only when `src/`, `configs/`, `dockerfiles/`, `pyproject.toml` or `uv.lock` changed (otherwise the job passes without building) |
+
+Pre-commit (`.pre-commit-config.yaml`) runs the same ruff checks locally plus
+trailing-whitespace, end-of-file-fixer, check-yaml, check-toml, check-added-large-files
+(1000 kB) and check-merge-conflict. mypy only runs in CI.
+
+## Branching strategy
+
+| Branch | Purpose |
+|---|---|
+| `main` | Always deployable. Protected: changes only arrive by pull request with green CI. |
+| `development` | Integration branch; features are merged here first. |
+| `feature/<name>` | New work, branched from `development` (e.g. `feature/sprint-a`). |
+| `bugfix/<name>` | Fixes, branched from `development`. |
+| `release/<version>` | Stabilising a release before it goes to `main`. |
+
+Work flows `feature/*` → PR → `development` → PR → `main`. Branch protection on `main`
+requires the checks `tests (3.12)`, `tests (3.13)`, `lint` and `docker build`.
+
+## Sprint A checklist
+
+| # | Item (module) | Status | Where |
+|---|---|---|---|
+| 1 | Project scaffolded from a cookiecutter template (M2) | Done, with a caveat | The layout follows the course's M2 package layout (`src/ecgops/` with `data.py`, `model.py`, `train.py`, plus `configs/`, `dockerfiles/`, `tests/`, `reports/`, `notebooks/`). It was restructured to that layout by hand (commit `b9ff30c`), not generated by running `cookiecutter`. |
+| 2 | Git repository created, team has write access (M2) | Done (repo); access to confirm | [github.com/habilarda-jpg/ECGops](https://github.com/habilarda-jpg/ECGops). Collaborators are managed in *Settings → Collaborators* and can't be seen from the repo files. |
+| 3 | Standard branching strategy (dev/feature/bugfix/release) (M2) | Done | `main`, `development`, `feature/sprint-a` on GitHub; workflows trigger on `feature/**`, `bugfix/**`, `release/**`; see [Branching strategy](#branching-strategy) |
+| 4 | `pyproject.toml` kept in sync with actual imports (M2) | Done | `pyproject.toml` + `uv.lock`; CI runs `uv lock --check` and `uv sync --frozen`, and `tests/test_package.py` imports every module |
+| 5 | Application containerized with a working Dockerfile (M3) | Done | `dockerfiles/train.dockerfile`, `dockerfiles/evaluate.dockerfile`; built and smoke-tested by `docker.yml` |
+| 6 | Hardcoded hyperparameters moved into a Hydra config (M3) | Done | `configs/config.yaml`, `configs/model/vgg1d.yaml`, `configs/training/default.yaml`; `uv run train training.lr=5e-4`; `tests/test_config.py` |
+| 7 | CI pipeline running on push (lint + at least one test) (M5) | Done | `.github/workflows/tests.yml` and `lint.yml` (plus `docker.yml`) |
+| 8 | Pre-commit hooks installed (M5) | Done | `.pre-commit-config.yaml`; `uv run pre-commit install`, `uv run pre-commit run --all-files` |
+
+## Known limitations
+
+- **Patient leakage between splits.** The PTBDB CSVs contain beats only, with no patient
+  IDs, so the split is per beat. Beats from the same patient can land in both train and
+  test, which makes the test scores optimistic for patients the model has never seen.
+- **Pre-segmented input only.** The model expects single heartbeats already cut to 187
+  samples and scaled to [0, 1], as in the dataset. It does not take a raw ECG recording;
+  beat detection and segmentation would have to happen before it.
