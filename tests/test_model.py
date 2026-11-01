@@ -32,6 +32,14 @@ def test_invalid_configs_raise(kwargs):
 
 
 def test_build_model_from_config_mapping():
-    model = build_model({"channels": [8, 16], "convs_per_block": 1, "hidden_dim": 16})
+    model_cfg = {
+        "in_channels": 1,
+        "channels": [8, 16],
+        "convs_per_block": 1,
+        "kernel_size": 3,
+        "hidden_dim": 16,
+        "dropout": 0.0,
+    }
+    model = build_model(model_cfg)
     assert isinstance(model, VGG1D)
     assert model.eval()(torch.rand(3, 1, 187)).shape == (3,)
