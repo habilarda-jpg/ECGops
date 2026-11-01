@@ -9,9 +9,9 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 WORKDIR /app
 # Dependencies first (cached layer), then the package itself.
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --frozen --no-dev --group serving --no-install-project
+RUN uv sync --frozen --no-default-groups --group serving --no-install-project
 COPY src ./src
-RUN uv sync --frozen --no-dev --group serving --no-editable
+RUN uv sync --frozen --no-default-groups --group serving --no-editable
 
 # ---- runtime: slim image with only the venv ----
 FROM python:3.12-slim AS runtime

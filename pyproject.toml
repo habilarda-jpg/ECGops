@@ -57,6 +57,9 @@ build-backend = "uv_build"
 
 [tool.uv]
 package = true
+# A plain `uv sync` installs dev tools and the API (FastAPI) too; Docker images opt out
+# with --no-default-groups.
+default-groups = ["dev", "serving"]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

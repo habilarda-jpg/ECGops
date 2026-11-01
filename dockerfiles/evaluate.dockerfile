@@ -25,10 +25,10 @@ ARG SKIP_PACKAGES="--no-install-package sympy --no-install-package mpmath \
 # Dependency layer first (cached until uv.lock / pyproject.toml change), then our package.
 COPY uv.lock pyproject.toml README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project $SKIP_PACKAGES
+    uv sync --frozen --no-default-groups --no-install-project $SKIP_PACKAGES
 COPY src/ src/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable $SKIP_PACKAGES
+    uv sync --frozen --no-default-groups --no-editable $SKIP_PACKAGES
 
 # Delete files that are only needed for development: test suites, C++ headers and CMake
 # files for building torch extensions, and any stray bytecode caches.

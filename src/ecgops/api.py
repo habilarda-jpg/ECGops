@@ -1,6 +1,6 @@
 """FastAPI service and local web page for heartbeat classification.
 
-Run it with ``uv sync --group serving`` and ``uv run serve``, then open http://127.0.0.1:8000
+Run it with ``uv sync`` (serving is a default group) and ``uv run serve``, then open http://127.0.0.1:8000
 (the web page) or http://127.0.0.1:8000/docs (Swagger). It runs locally only; deployment is
 M7.
 

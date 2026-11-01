@@ -1,7 +1,7 @@
 """Tests for the FastAPI service (ecgops.api) with a tiny random model; no MLflow server.
 
-Needs the serving group (`uv sync --group serving`). Locally the module is skipped without
-it; CI sets ECGOPS_REQUIRE_SERVING=1 so a missing install fails instead of skipping.
+Needs the serving group (a default group, so `uv sync` installs it). Without it the module
+is skipped locally; CI sets ECGOPS_REQUIRE_SERVING=1 so a missing install fails instead of skipping.
 """
 
 import io

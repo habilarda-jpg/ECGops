@@ -35,8 +35,8 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
-      - name: Install dependencies (exactly as locked, plus the API's serving group)
-        run: uv sync --frozen --group serving
+      - name: Install dependencies (exactly as locked; dev + serving are default groups)
+        run: uv sync --frozen
 
       - name: Show versions
         run: uv run python -c "import sys, torch; print(sys.version); print('torch', torch.__version__)"

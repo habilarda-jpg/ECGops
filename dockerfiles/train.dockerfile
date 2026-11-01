@@ -21,7 +21,7 @@ WORKDIR /app
 #    (large, slow) layer on every rebuild after a code change.
 COPY uv.lock pyproject.toml README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-default-groups --no-install-project
 
 # 2) Our code and Hydra configs, then install the ecgops package itself (non-editable).
 #    UV_COMPILE_BYTECODE=0 here: the dependencies were already compiled in step 1, and
@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY src/ src/
 COPY configs/ configs/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    UV_COMPILE_BYTECODE=0 uv sync --frozen --no-dev --no-editable
+    UV_COMPILE_BYTECODE=0 uv sync --frozen --no-default-groups --no-editable
 
 # 3) Run as an unprivileged user; it owns only the folders the run writes to.
 RUN useradd --create-home --uid 1000 appuser \
