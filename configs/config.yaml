@@ -19,6 +19,11 @@ evaluation:
   threshold: 0.5                 # sigmoid probability above which a beat is "abnormal"
   reports_dir: reports           # metrics.json and figures/ go here
 
+samples:                         # `uv run make-samples`: example beats for `uv run predict`
+  out_dir: samples               # example_beats.csv (+ label) and example_beats_unlabeled.csv
+  n_per_class: 5                 # normal and abnormal beats each, drawn from the TEST split
+  seed: 42
+
 tracking:
   mlflow:
     enabled: true

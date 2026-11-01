@@ -4,6 +4,8 @@ Pipeline (``uv run prepare-data``)::
 
     data/raw/*.csv -> load_raw -> validate -> split -> data/processed/{train,val,test}.npz
 
+``uv run make-samples`` then copies a few test-split beats to samples/ for ``uv run predict``.
+
 Each raw row is one heartbeat: 187 signal samples scaled to [0, 1] followed by the label
 (0 = normal, 1 = abnormal). The CSV files have no header.
 """
@@ -25,6 +27,8 @@ from ecgops.utils import CONFIG_DIR, abs_path, setup_logging
 
 SIGNAL_LENGTH = 187
 N_COLUMNS = SIGNAL_LENGTH + 1  # signal samples + label
+SAMPLING_RATE_HZ = 125  # PTBDB beats were resampled to 125 Hz: 187 samples = 1.5 s
+CLASS_NAMES = ("normal", "abnormal")  # index = label
 RAW_FILES = ("ptbdb_normal.csv", "ptbdb_abnormal.csv")
 SPLITS = ("train", "val", "test")
 
@@ -43,24 +47,41 @@ def load_raw(raw_dir: str | Path) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
+def validate_signals(signals: np.ndarray) -> None:
+    """Check a (N, 187) array of beats: non-empty, no NaN, every value in [0, 1].
+
+    Shared by ``validate`` (training data) and ``ecgops.inference`` (beats sent for
+    prediction), so both apply exactly the same rules.
+    """
+    if signals.ndim != 2 or signals.shape[1] != SIGNAL_LENGTH or len(signals) == 0:
+        raise ValueError(
+            f"Expected beats of shape (N, {SIGNAL_LENGTH}) with N >= 1, got {signals.shape}."
+        )
+    n_missing = int(np.isnan(signals).sum())
+    if n_missing:
+        raise ValueError(f"Found {n_missing} missing values (NaN).")
+    low, high = float(signals.min()), float(signals.max())
+    if low < 0.0 or high > 1.0:
+        raise ValueError(f"Signal values must lie in [0, 1]; found range [{low:.4f}, {high:.4f}].")
+
+
+def validate_labels(labels: np.ndarray) -> None:
+    """Check that every label is 0 (normal) or 1 (abnormal)."""
+    if np.isnan(labels).any():
+        raise ValueError("Found missing labels (NaN).")
+    found = set(np.unique(labels).tolist())
+    if not found <= {0, 1}:
+        raise ValueError(f"Labels must be 0 or 1; found {sorted(found)}.")
+
+
 def validate(df: pd.DataFrame) -> None:
     """Check the shape, missing values, signal range and labels; raise ValueError if broken."""
     if df.shape[1] != N_COLUMNS:
         raise ValueError(
             f"Expected {N_COLUMNS} columns ({SIGNAL_LENGTH} signal + 1 label), got {df.shape[1]}."
         )
-    n_missing = int(df.isna().sum().sum())
-    if n_missing:
-        raise ValueError(f"Found {n_missing} missing values (NaN).")
-
-    signals = df.iloc[:, :-1].to_numpy()
-    low, high = float(signals.min()), float(signals.max())
-    if low < 0.0 or high > 1.0:
-        raise ValueError(f"Signal values must lie in [0, 1]; found range [{low:.4f}, {high:.4f}].")
-
-    labels = set(df.iloc[:, -1].unique().tolist())
-    if not labels <= {0, 1}:
-        raise ValueError(f"Labels must be 0 or 1; found {sorted(labels)}.")
+    validate_signals(df.iloc[:, :-1].to_numpy(dtype=np.float64))
+    validate_labels(df.iloc[:, -1].to_numpy(dtype=np.float64))
 
     counts = df.iloc[:, -1].value_counts().sort_index()
     n_normal, n_abnormal = int(counts.get(0, 0)), int(counts.get(1, 0))
@@ -158,11 +179,68 @@ class ECGDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         return self.features[index], self.labels[index]
 
 
+def make_samples(cfg: DictConfig) -> dict[str, Path]:
+    """Copy a few beats from the TEST split to samples/ as small example CSV files.
+
+    ``cfg.samples.n_per_class`` normal and abnormal beats are drawn with ``cfg.samples.seed``
+    (so the files are reproducible) and shuffled. Only the test split is used, never train
+    or val, so the trained model has not seen these beats. Two files are written:
+    example_beats.csv in the raw PTBDB format (187 values + label, no header) and
+    example_beats_unlabeled.csv with the same beats but without the label column.
+    """
+    test_path = processed_paths(cfg)["test"]
+    if not test_path.exists():
+        logger.info("{} missing - running prepare_data first.", test_path)
+        prepare_data(cfg)
+    features, labels = load_split(test_path)
+
+    n_per_class = int(cfg.samples.n_per_class)
+    rng = np.random.default_rng(cfg.samples.seed)
+    picked = []
+    for label in (0, 1):
+        candidates = np.flatnonzero(labels == label)
+        if len(candidates) < n_per_class:
+            raise ValueError(f"Only {len(candidates)} beats with label {label} in {test_path}.")
+        picked.append(rng.choice(candidates, size=n_per_class, replace=False))
+    order = rng.permutation(np.concatenate(picked))
+    beats, beat_labels = features[order], labels[order]
+
+    out_dir = abs_path(cfg.samples.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = {
+        "labeled": out_dir / "example_beats.csv",
+        "unlabeled": out_dir / "example_beats_unlabeled.csv",
+    }
+    # newline="\n" so the files are byte-identical on Windows and Linux.
+    with paths["labeled"].open("w", newline="\n") as f:
+        for beat, label in zip(beats, beat_labels, strict=True):
+            f.write(",".join([*(f"{v:.7g}" for v in beat), str(int(label))]) + "\n")
+    with paths["unlabeled"].open("w", newline="\n") as f:
+        for beat in beats:
+            f.write(",".join(f"{v:.7g}" for v in beat) + "\n")
+    logger.info(
+        "Wrote {} test beats ({} normal, {} abnormal; test rows {}) to {} and {}",
+        len(order),
+        int((beat_labels == 0).sum()),
+        int((beat_labels == 1).sum()),
+        order.tolist(),
+        *paths.values(),
+    )
+    return paths
+
+
 @hydra.main(config_path=str(CONFIG_DIR), config_name="config", version_base="1.3")
 def main(cfg: DictConfig) -> None:
     """Entry point for the ``prepare-data`` console script."""
     setup_logging()
     prepare_data(cfg)
+
+
+@hydra.main(config_path=str(CONFIG_DIR), config_name="config", version_base="1.3")
+def samples_main(cfg: DictConfig) -> None:
+    """Entry point for the ``make-samples`` console script."""
+    setup_logging()
+    make_samples(cfg)
 
 
 if __name__ == "__main__":

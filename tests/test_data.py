@@ -9,6 +9,7 @@ from ecgops.data import (
     ECGDataset,
     load_raw,
     load_split,
+    make_samples,
     prepare_data,
     processed_data_exists,
     split,
@@ -106,3 +107,33 @@ def test_prepare_data_writes_three_splits(tmp_path, make_frame, compose_cfg):
     assert features.dtype == np.float32 and features.shape[1] == SIGNAL_LENGTH
     assert set(np.unique(labels)) == {0, 1}
     assert len(ECGDataset.from_npz(paths["test"])) == 30
+
+
+def test_make_samples_uses_only_the_test_split_and_is_reproducible(tmp_path, compose_cfg):
+    processed = tmp_path / "processed"
+    processed.mkdir()
+    rng = np.random.default_rng(0)
+    test_features = rng.random((40, SIGNAL_LENGTH)).astype(np.float32)
+    test_labels = np.arange(40) % 2
+    np.savez_compressed(processed / "test.npz", X=test_features, y=test_labels)
+    cfg = compose_cfg(
+        [
+            f"data.processed_dir={processed.as_posix()}",
+            f"samples.out_dir={(tmp_path / 'samples').as_posix()}",
+        ]
+    )
+
+    paths = make_samples(cfg)
+    first = {name: path.read_bytes() for name, path in paths.items()}
+    make_samples(cfg)
+
+    assert {name: path.read_bytes() for name, path in paths.items()} == first
+    labeled = np.loadtxt(paths["labeled"], delimiter=",")
+    unlabeled = np.loadtxt(paths["unlabeled"], delimiter=",")
+    assert labeled.shape == (10, SIGNAL_LENGTH + 1)
+    assert unlabeled.shape == (10, SIGNAL_LENGTH)
+    np.testing.assert_array_equal(labeled[:, :-1], unlabeled)
+    assert sorted(labeled[:, -1].tolist()) == [0] * 5 + [1] * 5
+    # Every sample beat is a row of the test split.
+    for beat in unlabeled:
+        assert np.isclose(test_features, beat, atol=1e-6).all(axis=1).any()

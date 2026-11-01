@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 prepare-data = "ecgops.data:main"
+make-samples = "ecgops.data:samples_main"
 train = "ecgops.train:main"
 evaluate = "ecgops.evaluate:main"
 

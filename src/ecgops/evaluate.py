@@ -28,12 +28,16 @@ from sklearn.metrics import (
 from torch import nn
 from torch.utils.data import DataLoader
 
-from ecgops.data import ECGDataset, prepare_data, processed_data_exists, processed_paths
+from ecgops.data import (
+    CLASS_NAMES,
+    ECGDataset,
+    prepare_data,
+    processed_data_exists,
+    processed_paths,
+)
 from ecgops.model import build_model
 from ecgops.tracking import ExperimentTracker
 from ecgops.utils import CONFIG_DIR, abs_path, get_device, setup_logging
-
-CLASS_NAMES = ["normal", "abnormal"]
 
 
 @torch.no_grad()
@@ -77,7 +81,7 @@ def save_confusion_matrix(matrix: np.ndarray, path: Path) -> None:
     """Plot the confusion matrix with counts and save it as a PNG."""
     fig = Figure(figsize=(5, 4.5), layout="constrained")
     ax = fig.add_subplot()
-    ConfusionMatrixDisplay(matrix, display_labels=CLASS_NAMES).plot(
+    ConfusionMatrixDisplay(matrix, display_labels=list(CLASS_NAMES)).plot(
         ax=ax, cmap="Blues", values_format="d", colorbar=False
     )
     ax.set_title("ECG test set - confusion matrix")
@@ -126,7 +130,7 @@ def main(cfg: DictConfig) -> dict[str, float]:
         "n_test": int(len(labels)),
         "threshold": threshold,
         "metrics": metrics,
-        "confusion_matrix": {"labels": CLASS_NAMES, "matrix": matrix.tolist()},
+        "confusion_matrix": {"labels": list(CLASS_NAMES), "matrix": matrix.tolist()},
     }
     metrics_path.write_text(json.dumps(report, indent=2))
     save_confusion_matrix(matrix, figure_path)
