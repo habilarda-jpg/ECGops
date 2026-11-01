@@ -1,7 +1,22 @@
+# Run on every commit (install once with `uv run pre-commit install`), or by hand:
+#   uv run pre-commit run --all-files
+# mypy is deliberately not here: it is slow on a low-RAM machine and runs in CI (lint.yml).
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+
+  # Keep rev in step with the ruff version in uv.lock, so the hook and CI agree.
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.0
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
