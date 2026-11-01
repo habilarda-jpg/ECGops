@@ -3,94 +3,227 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>ECGops Heartbeat Classifier</title>
+  <!-- Apply the saved theme before the first paint (no flash of the wrong theme).
+       "system" (or nothing saved, or storage blocked) leaves it to prefers-color-scheme. -->
+  <script>
+    (function () {
+      var theme = "system";
+      try { theme = localStorage.getItem("ecgops-theme") || "system"; } catch (e) {}
+      if (theme === "light" || theme === "dark") {
+        document.documentElement.setAttribute("data-theme", theme);
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header class="site-header">
-    <div class="wrap">
-      <h1>ECGops <span class="subtitle">heartbeat classifier</span></h1>
-      <p class="disclaimer" role="note">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="topbar-inner wrap">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <rect width="32" height="32" rx="8"></rect>
+          <path d="M4 17h6l2.5-6 4 12 3-9 1.5 3H28"></path>
+        </svg>
+        <div>
+          <h1 class="brand-name">ECGops</h1>
+          <p class="brand-sub">Heartbeat classifier &middot; local demo</p>
+        </div>
+      </div>
+      <div class="topbar-tools">
+        <span class="status-pill" id="model-status" data-state="pending">
+          <span class="dot" aria-hidden="true"></span><span class="status-text">Checking model…</span>
+        </span>
+        <fieldset class="theme-toggle" id="theme-toggle">
+          <legend class="visually-hidden">Colour theme</legend>
+          <label title="Light theme">
+            <input type="radio" name="theme" value="light">
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.5"></circle><path d="M10 1.5v2.5M10 16v2.5M1.5 10H4M16 10h2.5M4 4l1.8 1.8M14.2 14.2 16 16M4 16l1.8-1.8M14.2 5.8 16 4"></path></svg>
+            <span class="toggle-text">Light</span>
+          </label>
+          <label title="Dark theme">
+            <input type="radio" name="theme" value="dark">
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M16.5 12.5A7 7 0 0 1 7.5 3.5a7 7 0 1 0 9 9z"></path></svg>
+            <span class="toggle-text">Dark</span>
+          </label>
+          <label title="Follow the system setting">
+            <input type="radio" name="theme" value="system">
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5"></rect><path d="M7 17h6M10 13.5V17"></path></svg>
+            <span class="toggle-text">System</span>
+          </label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <div class="notice" role="note">
+      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 2 1.5 17h17z"></path><path d="M10 8v4M10 14.5v.5"></path></svg>
+      <p>
         <strong>Educational project, not a medical diagnostic tool.</strong>
         Do not use these results for any health decision.
       </p>
     </div>
-  </header>
 
-  <main class="wrap">
-    <section class="card" aria-labelledby="about-title">
-      <h2 id="about-title">Expected input</h2>
-      <p>
-        Pre-segmented <strong>single heartbeats</strong>: 187 samples at 125&nbsp;Hz (1.5&nbsp;s,
-        zero-padded at the end), scaled to [0,&nbsp;1]. Upload a CSV with one beat per row and
-        <strong>187 columns</strong>, or <strong>188</strong> when the last column is the label
-        (0&nbsp;=&nbsp;normal, 1&nbsp;=&nbsp;abnormal), with no header. Raw ECG recordings are not
-        supported.
-      </p>
-      <p class="status" id="model-status">Checking the model…</p>
-    </section>
+    <div class="grid">
+      <!-- Try a sample -->
+      <section class="card" aria-labelledby="sample-title">
+        <div class="card-head">
+          <div>
+            <h2 id="sample-title">Try a sample</h2>
+            <p class="card-sub">One of the 10 example beats from the test split.</p>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="sample-clear">Clear</button>
+        </div>
+        <div class="field">
+          <label for="sample-select">Sample beat</label>
+          <select id="sample-select" disabled><option value="">Loading samples…</option></select>
+        </div>
+        <div class="chart">
+          <canvas id="sample-canvas" role="img"
+                  aria-label="Waveform of the selected sample beat"></canvas>
+        </div>
+        <div id="sample-result" class="result-line" aria-live="polite"></div>
+      </section>
 
-    <section class="card" aria-labelledby="threshold-title">
-      <h2 id="threshold-title">Threshold</h2>
-      <div class="threshold-row">
-        <label for="threshold">A beat is <em>abnormal</em> when P(abnormal) ≥</label>
-        <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.5">
-        <output id="threshold-value" for="threshold">0.50</output>
+      <div class="stack">
+        <!-- Upload -->
+        <section class="card" aria-labelledby="upload-title">
+          <div class="card-head">
+            <div>
+              <h2 id="upload-title">Upload a CSV</h2>
+              <p class="card-sub">Classified on the server, beat by beat.</p>
+            </div>
+          </div>
+          <div id="dropzone" class="dropzone" tabindex="0" role="button"
+               aria-describedby="dropzone-hint"
+               aria-label="Drop a CSV file here or press Enter to choose one">
+            <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"></path><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"></path></svg>
+            <p class="dropzone-title"><strong>Drop a CSV file here</strong> or <span class="link">choose a file</span></p>
+            <p class="dropzone-hint" id="dropzone-hint">Up to 5 MB and 10,000 beats. Try <code>samples/demo_beats_500.csv</code>.</p>
+            <input type="file" id="file-input" accept=".csv,text/csv" hidden>
+          </div>
+          <details class="format">
+            <summary>Expected input format</summary>
+            <p>
+              Pre-segmented <strong>single heartbeats</strong>: 187 samples at 125&nbsp;Hz
+              (1.5&nbsp;s, zero-padded at the end), scaled to [0,&nbsp;1]. One beat per row with
+              <strong>187 columns</strong>, or <strong>188</strong> when the last column is the
+              label (0&nbsp;=&nbsp;normal, 1&nbsp;=&nbsp;abnormal), no header. Raw ECG
+              recordings are not supported.
+            </p>
+          </details>
+          <div id="progress-area" class="progress-area" hidden>
+            <div class="progress-label">
+              <span id="progress-text" aria-live="polite">Uploading…</span>
+              <span id="progress-percent" class="progress-percent" aria-hidden="true">0%</span>
+            </div>
+            <div class="progress" role="progressbar" aria-labelledby="progress-text"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar">
+              <div class="progress-fill" id="progress-fill"></div>
+            </div>
+          </div>
+          <p id="upload-error" class="alert" role="alert" hidden></p>
+        </section>
+
+        <!-- Threshold -->
+        <section class="card" aria-labelledby="threshold-title">
+          <div class="card-head">
+            <div>
+              <h2 id="threshold-title">Decision threshold</h2>
+              <p class="card-sub">A beat is <em>abnormal</em> when P(abnormal) &ge; threshold.</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="threshold-reset" disabled>
+              Reset to default
+            </button>
+          </div>
+          <div class="slider-row">
+            <label for="threshold" class="visually-hidden">Threshold</label>
+            <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.5">
+            <output id="threshold-value" for="threshold" class="slider-value">0.50</output>
+          </div>
+          <p class="hint" id="threshold-note" aria-live="polite">
+            Moving the slider re-labels every result in your browser; nothing is uploaded again.
+          </p>
+        </section>
       </div>
-      <p class="hint" id="threshold-note">Moving the slider re-labels the results in your browser.</p>
-    </section>
+    </div>
 
-    <section class="card" aria-labelledby="sample-title">
-      <h2 id="sample-title">Try a sample</h2>
-      <div class="sample-row">
-        <label for="sample-select">Sample beat</label>
-        <select id="sample-select" disabled><option>Loading samples…</option></select>
-      </div>
-      <canvas id="sample-canvas" class="wave" width="800" height="240"
-              aria-label="Waveform of the selected sample beat"></canvas>
-      <div id="sample-result" class="result-line" aria-live="polite"></div>
-    </section>
-
-    <section class="card" aria-labelledby="upload-title">
-      <h2 id="upload-title">Upload a CSV</h2>
-      <div id="dropzone" class="dropzone" tabindex="0" role="button"
-           aria-label="Drop a CSV file here or press Enter to choose one">
-        <p><strong>Drop a CSV file here</strong> or <span class="link">choose a file</span></p>
-        <p class="hint">Up to 5 MB and 10,000 beats. Try <code>samples/demo_beats_500.csv</code>.</p>
-        <input type="file" id="file-input" accept=".csv,text/csv" hidden>
-      </div>
-      <div id="progress-area" class="progress-area" hidden aria-live="polite">
-        <div class="progress-label"><span id="progress-text">Uploading…</span></div>
-        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"
-             aria-valuenow="0" id="progress-bar">
-          <div class="progress-fill" id="progress-fill"></div>
+    <!-- Results -->
+    <section class="card results" id="results" aria-labelledby="results-title">
+      <div class="card-head">
+        <div>
+          <h2 id="results-title">Results</h2>
+          <p class="card-sub" id="results-sub">Upload a CSV to see the results here.</p>
+        </div>
+        <div class="actions">
+          <a id="download" class="btn btn-primary" href="#" download aria-disabled="true"
+             tabindex="-1">
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 3v10M6 9l4 4 4-4M4 16.5h12"></path></svg>
+            Download CSV
+          </a>
+          <button type="button" class="btn btn-secondary" id="clear-results" disabled>
+            Clear results
+          </button>
         </div>
       </div>
-      <p id="upload-error" class="error" role="alert" hidden></p>
-    </section>
 
-    <section class="card" id="results" aria-labelledby="results-title" hidden>
-      <div class="results-head">
-        <h2 id="results-title">Results</h2>
-        <a id="download" class="button" href="#" download>Download results CSV</a>
+      <div id="results-empty" class="empty">
+        <svg viewBox="0 0 48 24" aria-hidden="true" focusable="false"><path d="M2 13h10l3-7 5 14 4-11 2 4h20"></path></svg>
+        <p>No results yet. Drop a CSV into <strong>Upload a CSV</strong> above.</p>
       </div>
-      <p id="summary" class="summary"></p>
-      <canvas id="beat-canvas" class="wave" width="800" height="240"
-              aria-label="Waveform of the selected beat"></canvas>
-      <p class="hint" id="beat-caption">Click a row to draw that beat.</p>
-      <div class="table-wrap">
-        <table id="results-table">
-          <thead>
-            <tr>
-              <th scope="col">Beat</th>
-              <th scope="col">P(abnormal)</th>
-              <th scope="col">Prediction</th>
-              <th scope="col" class="label-col">True label</th>
-              <th scope="col" class="label-col">Correct</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+
+      <div id="results-body" hidden>
+        <div class="stats" id="stats">
+          <div class="stat"><span class="stat-label">Beats analysed</span><span class="stat-value" id="stat-total">0</span></div>
+          <div class="stat stat-abnormal"><span class="stat-label">Abnormal</span><span class="stat-value" id="stat-abnormal">0</span><span class="stat-meta" id="stat-abnormal-pct"></span></div>
+          <div class="stat stat-normal"><span class="stat-label">Normal</span><span class="stat-value" id="stat-normal">0</span><span class="stat-meta" id="stat-normal-pct"></span></div>
+          <div class="stat" id="stat-accuracy-tile"><span class="stat-label">Accuracy</span><span class="stat-value" id="stat-accuracy">–</span><span class="stat-meta" id="stat-accuracy-meta"></span></div>
+          <div class="stat"><span class="stat-label">Changed vs default</span><span class="stat-value" id="stat-changed">0</span><span class="stat-meta" id="stat-changed-meta"></span></div>
+        </div>
+
+        <div class="results-grid">
+          <div class="chart-panel">
+            <div class="chart">
+              <canvas id="beat-canvas" role="img" aria-label="Waveform of the selected beat"></canvas>
+            </div>
+            <p class="hint" id="beat-caption">Click a row (or use the arrow keys) to draw that beat.</p>
+
+            <div class="confusion" id="confusion" hidden>
+              <h3>Confusion matrix</h3>
+              <table class="cm">
+                <caption class="visually-hidden">Predicted against true labels at the current threshold</caption>
+                <thead>
+                  <tr><td></td><th scope="col">Pred. abnormal</th><th scope="col">Pred. normal</th></tr>
+                </thead>
+                <tbody>
+                  <tr><th scope="row">True abnormal</th><td class="cm-good"><span class="cm-tag">TP</span><span id="cm-tp">0</span></td><td class="cm-bad"><span class="cm-tag">FN</span><span id="cm-fn">0</span></td></tr>
+                  <tr><th scope="row">True normal</th><td class="cm-bad"><span class="cm-tag">FP</span><span id="cm-fp">0</span></td><td class="cm-good"><span class="cm-tag">TN</span><span id="cm-tn">0</span></td></tr>
+                </tbody>
+              </table>
+              <p class="hint" id="cm-rates"></p>
+            </div>
+          </div>
+
+          <div class="table-wrap" id="table-wrap">
+            <table id="results-table" class="data">
+              <caption class="visually-hidden">Prediction for every uploaded beat</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="num">Beat</th>
+                  <th scope="col">P(abnormal)</th>
+                  <th scope="col">Prediction</th>
+                  <th scope="col" class="label-col">True label</th>
+                  <th scope="col" class="label-col">Correct</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
   </main>
