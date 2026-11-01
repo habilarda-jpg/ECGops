@@ -35,13 +35,15 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
-      - name: Install dependencies (exactly as locked)
-        run: uv sync --frozen
+      - name: Install dependencies (exactly as locked, plus the API's serving group)
+        run: uv sync --frozen --group serving
 
       - name: Show versions
         run: uv run python -c "import sys, torch; print(sys.version); print('torch', torch.__version__)"
 
       - name: Run pytest with coverage
+        env:
+          ECGOPS_REQUIRE_SERVING: "1" # tests/test_api.py must run, never skip
         run: >-
           uv run pytest
           --cov --cov-report=term-missing

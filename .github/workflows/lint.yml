@@ -33,8 +33,8 @@ jobs:
       - name: Check uv.lock matches pyproject.toml
         run: uv lock --check
 
-      - name: Install dependencies (exactly as locked)
-        run: uv sync --frozen
+      - name: Install dependencies (exactly as locked, plus serving so mypy sees FastAPI)
+        run: uv sync --frozen --group serving
 
       - name: Ruff lint
         run: uv run ruff check --output-format=github .
