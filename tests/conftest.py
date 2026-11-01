@@ -8,10 +8,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig
 
 from ecgops.data import SIGNAL_LENGTH
+from ecgops.model import build_model
 from ecgops.utils import CONFIG_DIR
 
 
@@ -68,3 +70,39 @@ def train_cfg(tmp_path: Path, compose_cfg: Callable[..., DictConfig]) -> DictCon
             "tracking.wandb.enabled=false",
         ]
     )
+
+
+SMALL_MODEL_CFG = {
+    "in_channels": 1,
+    "channels": [8, 16],
+    "convs_per_block": 1,
+    "kernel_size": 3,
+    "hidden_dim": 16,
+    "dropout": 0.0,
+}
+
+
+@pytest.fixture
+def model_checkpoint(tmp_path: Path) -> Path:
+    """A randomly initialised small VGG1D saved in the same format as `uv run train`."""
+    torch.manual_seed(0)
+    model = build_model(SMALL_MODEL_CFG)
+    path = tmp_path / "model.pt"
+    torch.save({"state_dict": model.state_dict(), "model_cfg": SMALL_MODEL_CFG}, path)
+    return path
+
+
+@pytest.fixture
+def beats_csv(tmp_path: Path) -> Callable[..., tuple[Path, np.ndarray, np.ndarray]]:
+    """Factory writing a tiny beats CSV (187 or 188 columns); returns (path, signals, labels)."""
+
+    def _write(labeled: bool = True, n_rows: int = 6) -> tuple[Path, np.ndarray, np.ndarray]:
+        rng = np.random.default_rng(3)
+        signals = rng.random((n_rows, SIGNAL_LENGTH))
+        labels = np.arange(n_rows) % 2
+        rows = np.column_stack([signals, labels]) if labeled else signals
+        path = tmp_path / ("labeled.csv" if labeled else "unlabeled.csv")
+        np.savetxt(path, rows, delimiter=",", fmt="%.8g")
+        return path, signals, labels
+
+    return _write

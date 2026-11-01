@@ -22,12 +22,13 @@ from ecgops.utils import flatten_dict, git_info
 T = TypeVar("T")
 
 
-def mlflow_server_reachable(tracking_uri: str, timeout: float) -> bool:
+def mlflow_server_reachable(tracking_uri: str, timeout: float, log_failure: bool = True) -> bool:
     """Check that the MLflow server answers API calls; local file/sqlite URIs need no server.
 
     A real API endpoint is used instead of /health: /health is exempt from MLflow's Host-header
     check, so it can succeed while every API call is rejected with 403 (e.g. when the server
-    was not started with ``--allowed-hosts`` for the hostname we use).
+    was not started with ``--allowed-hosts`` for the hostname we use). With
+    ``log_failure=False`` the caller reports the failure itself.
     """
     if not tracking_uri.startswith(("http://", "https://")):
         return True
@@ -37,6 +38,8 @@ def mlflow_server_reachable(tracking_uri: str, timeout: float) -> bool:
             status: int = resp.status
             return status == 200
     except (urllib.error.URLError, OSError) as exc:  # HTTPError (e.g. 403) is a URLError
+        if not log_failure:
+            return False
         logger.warning(
             "MLflow server {} unusable ({}); continuing without MLflow.", tracking_uri, exc
         )
