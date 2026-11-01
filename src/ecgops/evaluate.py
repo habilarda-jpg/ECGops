@@ -45,15 +45,16 @@ def predict(
 ) -> tuple[float | None, np.ndarray, np.ndarray]:
     """Run the model over a loader; return (mean loss or None, probabilities, true labels)."""
     model.eval()
-    total_loss, probs, labels = 0.0, [], []
+    total_loss, n_samples, probs, labels = 0.0, 0, [], []
     for x, y in loader:
         x, y = x.to(device), y.to(device)
         logits = model(x)
         if criterion is not None:
-            total_loss += criterion(logits, y).item() * len(y)
+            total_loss += float(criterion(logits, y).item()) * len(y)
+            n_samples += len(y)
         probs.append(torch.sigmoid(logits).cpu().numpy())
         labels.append(y.cpu().numpy())
-    mean_loss = total_loss / len(loader.dataset) if criterion is not None else None  # type: ignore[arg-type]
+    mean_loss = total_loss / n_samples if criterion is not None else None
     return mean_loss, np.concatenate(probs), np.concatenate(labels).astype(int)
 
 

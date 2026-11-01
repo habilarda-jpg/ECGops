@@ -125,15 +125,16 @@ def train_one_epoch(
 ) -> float:
     """One pass over the training data; return the mean training loss."""
     model.train()
-    total_loss = 0.0
+    total_loss, n_samples = 0.0, 0
     for x, y in loader:
         x, y = x.to(device), y.to(device)
         optimizer.zero_grad()
         loss = criterion(model(x), y)
         loss.backward()
         optimizer.step()
-        total_loss += loss.item() * len(y)
-    return total_loss / len(loader.dataset)  # type: ignore[arg-type]
+        total_loss += float(loss.item()) * len(y)
+        n_samples += len(y)
+    return total_loss / n_samples
 
 
 @hydra.main(config_path=str(CONFIG_DIR), config_name="config", version_base="1.3")

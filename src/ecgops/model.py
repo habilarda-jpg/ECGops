@@ -72,7 +72,8 @@ class VGG1D(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Map a batch (batch, 1, 187) to one logit per beat, shape (batch,)."""
-        return self.classifier(self.pool(self.features(x))).squeeze(-1)
+        logits: torch.Tensor = self.classifier(self.pool(self.features(x)))
+        return logits.squeeze(-1)
 
 
 def build_model(model_cfg: Mapping[str, Any]) -> VGG1D:

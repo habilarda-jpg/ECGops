@@ -72,4 +72,26 @@ select = ["E", "F", "I", "UP", "B"]
 testpaths = ["tests"]
 
 [tool.coverage.run]
+source = ["ecgops"]
 omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
+strict_equality = true
+
+# Third-party libraries without type hints (or with partial stubs).
+[[tool.mypy.overrides]]
+module = ["mlflow.*", "sklearn.*", "hydra.*", "wandb.*", "pandas.*", "matplotlib.*"]
+ignore_missing_imports = true

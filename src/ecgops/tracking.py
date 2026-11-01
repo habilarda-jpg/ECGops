@@ -34,7 +34,8 @@ def mlflow_server_reachable(tracking_uri: str, timeout: float) -> bool:
     url = f"{tracking_uri.rstrip('/')}/api/2.0/mlflow/experiments/search?max_results=1"
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
-            return resp.status == 200
+            status: int = resp.status
+            return status == 200
     except (urllib.error.URLError, OSError) as exc:  # HTTPError (e.g. 403) is a URLError
         logger.warning(
             "MLflow server {} unusable ({}); continuing without MLflow.", tracking_uri, exc
