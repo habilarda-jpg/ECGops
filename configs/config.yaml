@@ -24,6 +24,14 @@ samples:                         # `uv run make-samples`: example beats for `uv 
   n_per_class: 5                 # normal and abnormal beats each, drawn from the TEST split
   seed: 42
 
+predict:                         # `uv run predict input=... plot=true` (short keys work too)
+  input: samples/example_beats.csv  # CSV with 187 (unlabeled) or 188 (labeled) columns
+  model_source: local            # local: the checkpoint at model_out | mlflow: model registry
+  model_version: latest          # registry version when model_source=mlflow (e.g. 8)
+  output: reports/predictions.csv
+  plot: false                    # also save a grid of the waveforms
+  figure: reports/figures/example_beats.png
+
 tracking:
   mlflow:
     enabled: true

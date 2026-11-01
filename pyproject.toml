@@ -18,6 +18,7 @@ dependencies = [
 [project.scripts]
 prepare-data = "ecgops.data:main"
 make-samples = "ecgops.data:samples_main"
+predict = "ecgops.predict:cli"
 train = "ecgops.train:main"
 evaluate = "ecgops.evaluate:main"
 
