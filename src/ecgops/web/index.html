@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ECGops Heartbeat Classifier</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <h1>ECGops <span class="subtitle">heartbeat classifier</span></h1>
+      <p class="disclaimer" role="note">
+        <strong>Educational project, not a medical diagnostic tool.</strong>
+        Do not use these results for any health decision.
+      </p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card" aria-labelledby="about-title">
+      <h2 id="about-title">Expected input</h2>
+      <p>
+        Pre-segmented <strong>single heartbeats</strong>: 187 samples at 125&nbsp;Hz (1.5&nbsp;s,
+        zero-padded at the end), scaled to [0,&nbsp;1]. Upload a CSV with one beat per row and
+        <strong>187 columns</strong>, or <strong>188</strong> when the last column is the label
+        (0&nbsp;=&nbsp;normal, 1&nbsp;=&nbsp;abnormal), with no header. Raw ECG recordings are not
+        supported.
+      </p>
+      <p class="status" id="model-status">Checking the model…</p>
+    </section>
+
+    <section class="card" aria-labelledby="threshold-title">
+      <h2 id="threshold-title">Threshold</h2>
+      <div class="threshold-row">
+        <label for="threshold">A beat is <em>abnormal</em> when P(abnormal) ≥</label>
+        <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.5">
+        <output id="threshold-value" for="threshold">0.50</output>
+      </div>
+      <p class="hint" id="threshold-note">Moving the slider re-labels the results in your browser.</p>
+    </section>
+
+    <section class="card" aria-labelledby="sample-title">
+      <h2 id="sample-title">Try a sample</h2>
+      <div class="sample-row">
+        <label for="sample-select">Sample beat</label>
+        <select id="sample-select" disabled><option>Loading samples…</option></select>
+      </div>
+      <canvas id="sample-canvas" class="wave" width="800" height="240"
+              aria-label="Waveform of the selected sample beat"></canvas>
+      <div id="sample-result" class="result-line" aria-live="polite"></div>
+    </section>
+
+    <section class="card" aria-labelledby="upload-title">
+      <h2 id="upload-title">Upload a CSV</h2>
+      <div id="dropzone" class="dropzone" tabindex="0" role="button"
+           aria-label="Drop a CSV file here or press Enter to choose one">
+        <p><strong>Drop a CSV file here</strong> or <span class="link">choose a file</span></p>
+        <p class="hint">Up to 5 MB and 10,000 beats. Try <code>samples/demo_beats_500.csv</code>.</p>
+        <input type="file" id="file-input" accept=".csv,text/csv" hidden>
+      </div>
+      <div id="progress-area" class="progress-area" hidden aria-live="polite">
+        <div class="progress-label"><span id="progress-text">Uploading…</span></div>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+             aria-valuenow="0" id="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+      <p id="upload-error" class="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card" id="results" aria-labelledby="results-title" hidden>
+      <div class="results-head">
+        <h2 id="results-title">Results</h2>
+        <a id="download" class="button" href="#" download>Download results CSV</a>
+      </div>
+      <p id="summary" class="summary"></p>
+      <canvas id="beat-canvas" class="wave" width="800" height="240"
+              aria-label="Waveform of the selected beat"></canvas>
+      <p class="hint" id="beat-caption">Click a row to draw that beat.</p>
+      <div class="table-wrap">
+        <table id="results-table">
+          <thead>
+            <tr>
+              <th scope="col">Beat</th>
+              <th scope="col">P(abnormal)</th>
+              <th scope="col">Prediction</th>
+              <th scope="col" class="label-col">True label</th>
+              <th scope="col" class="label-col">Correct</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    ECGops, local demo. API docs at <a href="/docs">/docs</a>.
+    Educational project, not a medical diagnostic tool.
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
