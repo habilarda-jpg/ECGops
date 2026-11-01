@@ -29,7 +29,7 @@ import pandas as pd
 import torch
 from torch import nn
 
-from ecgops.data import N_COLUMNS, SIGNAL_LENGTH, validate_labels, validate_signals
+from ecgops.data import CLASS_NAMES, N_COLUMNS, SIGNAL_LENGTH, validate_labels, validate_signals
 from ecgops.model import build_model
 
 MLFLOW_HINT = (
@@ -60,6 +60,13 @@ class Predictions:
     probabilities: np.ndarray
     labels: np.ndarray
     threshold: float
+
+    def at_threshold(self, threshold: float) -> Predictions:
+        """The same probabilities re-labelled with another threshold (no model call)."""
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(f"threshold must be in [0, 1], got {threshold}.")
+        labels = (self.probabilities >= threshold).astype(np.int64)
+        return Predictions(self.probabilities, labels, threshold)
 
 
 def load_model(path: str | Path, device: str | torch.device = "cpu") -> nn.Module:
@@ -185,3 +192,20 @@ def predict(
     probabilities = torch.cat(chunks).numpy().astype(np.float64)
     labels = (probabilities >= threshold).astype(np.int64)
     return Predictions(probabilities=probabilities, labels=labels, threshold=threshold)
+
+
+def predictions_table(result: Predictions, true_labels: np.ndarray | None = None) -> pd.DataFrame:
+    """One row per beat, shared by the CLI and the API so their CSV files are identical.
+
+    Columns: beat (1-based), true_label (if known), abnormal_probability (4 decimals),
+    predicted_label (0/1), prediction (normal/abnormal) and correct (if labels are known).
+    """
+    table = pd.DataFrame({"beat": np.arange(1, len(result.probabilities) + 1)})
+    if true_labels is not None:
+        table["true_label"] = [CLASS_NAMES[label] for label in true_labels]
+    table["abnormal_probability"] = result.probabilities.round(4)
+    table["predicted_label"] = result.labels
+    table["prediction"] = [CLASS_NAMES[label] for label in result.labels]
+    if true_labels is not None:
+        table["correct"] = true_labels == result.labels
+    return table

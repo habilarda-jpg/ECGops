@@ -35,6 +35,7 @@ from ecgops.inference import (
     load_model,
     load_registry_model,
     predict,
+    predictions_table,
     read_beats,
 )
 from ecgops.utils import CONFIG_DIR, abs_path, setup_logging
@@ -66,18 +67,6 @@ def load_selected_model(cfg: DictConfig) -> tuple[nn.Module, str]:
         )
         return model, f"models:/{name}/{version} ({mlflow_cfg.tracking_uri})"
     raise ValueError(f"predict.model_source must be 'local' or 'mlflow', got '{source}'.")
-
-
-def results_table(beats: Beats, result: Predictions) -> pd.DataFrame:
-    """One row per beat: beat number, true label (if known), probability, prediction."""
-    table = pd.DataFrame({"beat": np.arange(1, len(beats) + 1)})
-    if beats.labels is not None:
-        table["true_label"] = [CLASS_NAMES[label] for label in beats.labels]
-    table["abnormal_probability"] = result.probabilities.round(4)
-    table["prediction"] = [CLASS_NAMES[label] for label in result.labels]
-    if beats.labels is not None:
-        table["correct"] = beats.labels == result.labels
-    return table
 
 
 def plot_beats(beats: Beats, result: Predictions, path: Path) -> None:
@@ -128,8 +117,9 @@ def run(cfg: DictConfig) -> pd.DataFrame:
     result = predict(model, beats.signals, threshold=cfg.evaluation.threshold)
     logger.info("Predicted {} beats from {} with {}", len(beats), input_path, model_name)
 
-    table = results_table(beats, result)
-    print(table.to_string(index=False))
+    table = predictions_table(result, beats.labels)
+    shown = table.drop(columns=["predicted_label"])
+    print(shown.to_string(index=False))
     n_abnormal = int(result.labels.sum())
     print(
         f"\n{n_abnormal} of {len(beats)} beats predicted abnormal (threshold {result.threshold})."
@@ -140,16 +130,14 @@ def run(cfg: DictConfig) -> pd.DataFrame:
 
     output = abs_path(cfg.predict.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    saved = table.drop(columns=["correct"], errors="ignore")
-    saved.insert(saved.columns.get_loc("prediction"), "predicted_label", result.labels)
-    saved.to_csv(output, index=False)
+    table.drop(columns=["correct"], errors="ignore").to_csv(output, index=False)
     print(f"Saved predictions to {output}")
 
     if cfg.predict.plot:
         figure = abs_path(cfg.predict.figure)
         plot_beats(beats, result, figure)
         print(f"Saved figure to {figure}")
-    return table
+    return shown
 
 
 @hydra.main(config_path=str(CONFIG_DIR), config_name="config", version_base="1.3")
