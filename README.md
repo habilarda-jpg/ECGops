@@ -52,7 +52,38 @@ not accept raw ECG recordings; anything else is rejected with a clear error. The
 beats come from the test split only, so the model never saw them during training.
 
 The prediction code lives in `src/ecgops/inference.py` (`load_model`, `read_beats`,
-`predict`), so the upcoming FastAPI service and web page reuse exactly the same functions.
+`predict`); the CLI, the API and the web page below all use those same functions, so they
+give identical answers.
+
+## Run the local website
+
+```bash
+uv sync --group serving      # FastAPI, uvicorn, python-multipart
+uv run serve                 # http://127.0.0.1:8000 (uv run serve --port 8080 to change)
+```
+
+Open <http://127.0.0.1:8000>:
+
+- **Try a sample**: pick one of the 10 example beats; the page draws it and shows the
+  probability, the predicted label and the true label.
+- **Upload a CSV**: drag `samples/demo_beats_500.csv` (500 labeled test beats) onto the
+  drop zone. The bar shows the upload (`Uploading… 45%`), then the analysis
+  (`Analysing… 120/300 beats (40%)`). Then you get a summary, accuracy, a table (click a row
+  to draw that beat) and a **Download results CSV** button.
+- **Threshold slider**: re-labels everything in the browser and shows how many beats change.
+
+The API docs (Swagger) are at <http://127.0.0.1:8000/docs>. Endpoints: `GET /health`,
+`GET /samples`, `POST /predict` (JSON beats), `POST /jobs` (CSV upload, max 5 MB and
+10,000 beats), `GET /jobs/{id}` (progress and results), `GET /jobs/{id}/beats/{n}`,
+`GET /jobs/{id}/results.csv`.
+
+The model is loaded once at startup from `models/ecg_vgg1d.pt`. Set
+`ECGOPS_MODEL_SOURCE=mlflow` (and optionally `ECGOPS_MODEL_VERSION=8`) to use the MLflow
+registry instead; that needs `docker compose up -d mlflow`. Without a model the site
+still starts: `/health` says why, and predictions return 503.
+
+This runs **locally only** and is not deployed anywhere. Deployment comes in M7. It is
+an educational project, not a medical diagnostic tool.
 
 ## Layout
 
@@ -73,7 +104,7 @@ The prediction code lives in `src/ecgops/inference.py` (`load_model`, `read_beat
 ├── models/                    # trained weights (git-ignored)
 ├── notebooks/                 # exploration
 ├── reports/figures/           # generated plots
-├── samples/                   # 10 example test-split beats for `uv run predict`
+├── samples/                   # example test-split beats (10 + a 500-beat demo file)
 ├── src/ecgops/
 │   ├── data.py                # loading, preprocessing, validation
 │   ├── model.py               # PyTorch model
@@ -81,7 +112,8 @@ The prediction code lives in `src/ecgops/inference.py` (`load_model`, `read_beat
 │   ├── evaluate.py            # evaluation entrypoint (`uv run evaluate`)
 │   ├── inference.py           # reusable load_model / read_beats / predict
 │   ├── predict.py             # `uv run predict`: CSV of beats -> table, CSV, figure
-│   ├── api.py                 # FastAPI service (M7)
+│   ├── api.py                 # FastAPI service + local web page (`uv run serve`)
+│   ├── web/                   # index.html, app.js, style.css (no build step)
 │   ├── monitoring.py          # drift detection + Prometheus metrics (M8)
 │   ├── profiling.py           # torch.profiler snapshot of one epoch
 │   ├── tracking.py            # MLflow / W&B experiment tracker
