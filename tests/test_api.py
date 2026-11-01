@@ -201,6 +201,18 @@ def test_unknown_job_is_404(client):
         assert "not found" in response.json()["detail"]
 
 
+def test_delete_job_forgets_it(client):
+    created = upload(client, csv_bytes(np.full((3, SIGNAL_LENGTH), 0.5)))
+    job_id = created.json()["job_id"]
+    assert client.get(f"/jobs/{job_id}").status_code == 200
+
+    response = client.delete(f"/jobs/{job_id}")
+    assert response.status_code == 204
+    assert client.get(f"/jobs/{job_id}").status_code == 404
+    assert client.get(f"/jobs/{job_id}/results.csv").status_code == 404
+    assert client.delete(f"/jobs/{job_id}").status_code == 404
+
+
 # ---------------------------------------------------------------- job internals
 
 

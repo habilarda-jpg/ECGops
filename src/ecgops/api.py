@@ -17,6 +17,7 @@ POST /jobs                   upload a CSV (multipart) -> {job_id, total}; runs i
 GET  /jobs/{id}              status, processed/total/percent; results + summary when done
 GET  /jobs/{id}/beats/{n}    the n-th uploaded beat (1-based), for drawing its waveform
 GET  /jobs/{id}/results.csv  results as CSV (optionally re-labelled with ?threshold=)
+DELETE /jobs/{id}            forget a job (the page's "Clear results"); frees its memory
 
 Configuration (environment variables)
 -------------------------------------
@@ -201,6 +202,13 @@ class JobStore:
         if job is None:
             raise HTTPException(404, f"Job '{job_id}' not found (unknown or expired).")
         return job
+
+    def remove(self, job_id: str) -> None:
+        """Forget a job. A running job finishes in its thread, but nobody can read it."""
+        with self._lock:
+            job = self._jobs.pop(job_id, None)
+        if job is None:
+            raise HTTPException(404, f"Job '{job_id}' not found (unknown or expired).")
 
     def _evict(self) -> None:
         """Drop expired jobs, then the oldest finished ones while the store is full."""
@@ -488,6 +496,13 @@ def job_results_csv(job_id: str, request: Request, threshold: float | None = Non
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{name}_predictions.csv"'},
     )
+
+
+@app.delete("/jobs/{job_id}", status_code=204)
+def delete_job(job_id: str, request: Request) -> Response:
+    """Forget a job and its beats (used by the page's "Clear results")."""
+    request.app.state.jobs.remove(job_id)
+    return Response(status_code=204)
 
 
 def serve() -> None:
