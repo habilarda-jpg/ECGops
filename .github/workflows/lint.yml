@@ -1,0 +1,46 @@
+# Static checks: lockfile, ruff lint, ruff formatting and mypy type checking (M5).
+name: lint
+
+on:
+  push:
+    branches: [main, development, "feature/**", "bugfix/**", "release/**"]
+  pull_request:
+    branches: [main, development]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: lint # stable name for the required status check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.12.19"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Check uv.lock matches pyproject.toml
+        run: uv lock --check
+
+      - name: Install dependencies (exactly as locked)
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        run: uv run ruff check --output-format=github .
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      - name: mypy
+        run: uv run mypy src

@@ -1,0 +1,58 @@
+# Unit tests with coverage on every supported Python version (M5).
+name: tests
+
+on:
+  push:
+    branches: [main, development, "feature/**", "bugfix/**", "release/**"]
+  pull_request:
+    branches: [main, development]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    # Stable job name: used as a required status check ("tests (3.12)", "tests (3.13)").
+    name: tests (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false # report every Python version even if one fails
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv and Python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.12.19"
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install dependencies (exactly as locked)
+        run: uv sync --frozen
+
+      - name: Show versions
+        run: uv run python -c "import sys, torch; print(sys.version); print('torch', torch.__version__)"
+
+      - name: Run pytest with coverage
+        run: >-
+          uv run pytest
+          --cov --cov-report=term-missing
+          --cov-report=xml:coverage.xml --cov-report=html:htmlcov
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-py${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            htmlcov/
+          retention-days: 14
